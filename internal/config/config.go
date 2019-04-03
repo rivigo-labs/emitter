@@ -95,6 +95,7 @@ type Config struct {
 	Monitor        *cfg.ProviderConfig `json:"monitor,omitempty"`  // The configuration for the monitoring storage.
 	Vault          secretStoreConfig   `json:"vault,omitempty"`    // The configuration for the Hashicorp Vault Secret Store.
 	Dynamo         secretStoreConfig   `json:"dynamodb,omitempty"` // The configuration for the AWS DynamoDB Secret Store.
+	Auth           *AuthConfig         `json:"auth,omitempty"`     // Config for password based authentication.
 
 	listenAddr *net.TCPAddr     // The listen address, parsed.
 	certCaches []cfg.CertCacher // The certificate caches configured.
@@ -163,6 +164,22 @@ type ClusterConfig struct {
 type LimitConfig struct{
 	//Maximum message size allowed from/to the peer. Default if not specified is 64kB.
 	MessageSize int `json:"messageSize,omitempty"`
+}
+
+type PasswordAuthConfig struct {
+
+	Password string `json:"password,omitempty"`
+	
+	ChannelKey string `json:"channelKey"`
+}
+
+
+type AuthConfig struct {
+	
+	EnablePasswordAuth bool                   `json:"PasswordAuth, omitempty"` //Enable password auth
+	
+	AuthMapping map[string]*PasswordAuthConfig `json:"authMapping, omitempty"`  // Key is username
+	
 }
 
 // LoadProvider loads a provider from the configuration or panics if the configuration is

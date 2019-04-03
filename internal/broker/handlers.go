@@ -17,6 +17,7 @@ package broker
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/emitter-io/emitter/internal/config"
 	"regexp"
 	"strings"
 	"time"
@@ -65,8 +66,22 @@ func (c *Conn) authorize(channel *security.Channel, permission uint8) (contract.
 // ------------------------------------------------------------------------------------
 
 // onConnect handles the connection authorization
-func (c *Conn) onConnect(packet *mqtt.Connect) bool {
+func (c *Conn) onConnect(packet *mqtt.Connect,authConfig map[string]*config.PasswordAuthConfig) bool {
 	c.username = string(packet.Username)
+
+	if authConfig != nil && authConfig[c.username] != nil{
+		fmt.Printf("Auth config : %v\n", authConfig)
+		password := string(packet.Password)
+
+		auth := authConfig[c.username]
+
+		if auth.Password == password{
+			c.bindkey = auth.ChannelKey
+			return true
+		}
+		return false
+	}
+
 	return true
 }
 

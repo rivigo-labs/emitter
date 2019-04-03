@@ -18,8 +18,10 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/emitter-io/emitter/internal/config"
 	"net"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,6 +47,8 @@ type Conn struct {
 	subs     *message.Counters // The subscriptions for this connection.
 	measurer stats.Measurer    // The measurer to use for monitoring.
 	links    map[string]string // The map of all pre-authorized links.
+
+	bindkey string             // In case of password auth - default key binding
 }
 
 // NewConn creates a new connection.
@@ -121,15 +125,37 @@ func (c *Conn) Process() error {
 	}
 }
 
+func addkeyToTopics(topics []mqtt.TopicQOSTuple, key string) []mqtt.TopicQOSTuple{
+	modifiedSubs := make([]mqtt.TopicQOSTuple, 0)
+
+	for _, subTuple := range topics {
+		initial := []byte(fmt.Sprintf("%s/", key))
+		subTuple.Topic = append(initial, subTuple.Topic...)
+		if !strings.HasSuffix(string(subTuple.Topic), "/"){
+			subTuple.Topic = append(subTuple.Topic, []byte("/")...)
+		}
+		modifiedSubs = append(modifiedSubs, subTuple)
+	}
+	return modifiedSubs
+
+}
+
 // onReceive handles an MQTT receive.
 func (c *Conn) onReceive(msg mqtt.Message) error {
 	defer c.MeasureElapsed("rcv."+msg.String(), time.Now())
+
+	passwordAuth := c.service.Config.Auth
+	var authConfig map[string]*config.PasswordAuthConfig
+	if passwordAuth != nil {
+		authConfig = passwordAuth.AuthMapping
+	}
+
 	switch msg.Type() {
 
 	// We got an attempt to connect to MQTT.
 	case mqtt.TypeOfConnect:
 		var result uint8
-		if !c.onConnect(msg.(*mqtt.Connect)) {
+		if !c.onConnect(msg.(*mqtt.Connect),authConfig) {
 			result = 0x05 // Unauthorized
 		}
 
@@ -142,6 +168,15 @@ func (c *Conn) onReceive(msg mqtt.Message) error {
 	// We got an attempt to subscribe to a channel.
 	case mqtt.TypeOfSubscribe:
 		packet := msg.(*mqtt.Subscribe)
+
+		if c.bindkey != "" {
+			packet.Subscriptions = addkeyToTopics(packet.Subscriptions, c.bindkey)
+		}
+
+		for _,subTuple := range packet.Subscriptions{
+			logging.LogAction("service", fmt.Sprintf("Topic is: %s",string(subTuple.Topic)))
+		}
+
 		ack := mqtt.Suback{
 			MessageID: packet.MessageID,
 			Qos:       make([]uint8, 0, len(packet.Subscriptions)),
@@ -167,6 +202,10 @@ func (c *Conn) onReceive(msg mqtt.Message) error {
 	// We got an attempt to unsubscribe from a channel.
 	case mqtt.TypeOfUnsubscribe:
 		packet := msg.(*mqtt.Unsubscribe)
+
+		if c.bindkey != ""{
+			packet.Topics = addkeyToTopics(packet.Topics, c.bindkey)
+		}
 		ack := mqtt.Unsuback{MessageID: packet.MessageID}
 
 		// Unsubscribe from each subscription
@@ -193,6 +232,16 @@ func (c *Conn) onReceive(msg mqtt.Message) error {
 
 	case mqtt.TypeOfPublish:
 		packet := msg.(*mqtt.Publish)
+
+		if c.bindkey != ""{
+			prefix := []byte(fmt.Sprintf("%s/", c.bindkey))
+			packet.Topic = append(prefix, packet.Topic...)
+			if !strings.HasSuffix(string(packet.Topic), "/"){
+				packet.Topic = append(packet.Topic, []byte("/")...)
+			}
+		}
+
+		//logging.LogAction("service", fmt.Sprintf("new topic name is %s", string(packet.Topic)))
 		if err := c.onPublish(packet); err != nil {
 			logging.LogError("conn", "publish received", err)
 			c.notifyError(err, packet.MessageID)

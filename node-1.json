@@ -1,0 +1,28 @@
+{
+	"listen": ":8080",
+	"license": "Q3n_TU6VuthCDwCJx4M0hl73b8Rf7-o8AAAAAAAAAAI",
+	"cluster": {
+		"name": "00:00:00:00:00:01",
+		"listen": ":4000",
+		"advertise": "emitter-1:4000"
+	},
+	"storage": {
+		"provider": "inmemory"
+	},
+	"monitor" : {
+		"provider" : "statsd",
+		"config" : {
+			"url" : "statsd:8125",
+			"interval" : 1000
+		}
+	},
+	"auth" : {
+		"PasswordAuth" : true,
+		"authMapping" : {
+			"rivigo" : {
+				"password" : "rivigo",
+				"channelKey": "Etf4e0fejLLBS32fyBQyfKNai1NAE4Si"
+			}
+		}
+	}
+}

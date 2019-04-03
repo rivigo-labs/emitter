@@ -17,10 +17,13 @@ import (
 
 func main() {
 	// Get the directory of the process
+
 	exe, err := os.Executable()
 	if err != nil {
 		panic(err.Error())
 	}
+
+	logging.LogAction("service", "Local setup running..")
 
 	// Process command-line arguments
 	argConfig := flag.String("config", filepath.Join(filepath.Dir(exe), "emitter.conf"), "The configuration file to use for the broker.")

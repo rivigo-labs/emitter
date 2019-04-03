@@ -1,0 +1,43 @@
+version: '3'
+networks:
+  shared:
+    external:
+      name: shared
+services:
+  emitter-1:
+    image: emitter-server:2.0
+    networks:
+      - shared
+    container_name: emitter-1
+    ports:
+      - "8082:8080"
+    command: ["./node-1.json"]
+  emitter-2:
+    image: emitter-server:2.0
+    networks:
+      - shared
+    container_name: emitter-2
+    ports:
+      - "8083:8080"
+    command: ["./node-2.json"]
+  statsd:
+    image: dockerana/statsd
+    networks:
+      - shared
+    ports:
+      - "8125:8125/udp"
+      - "8126:8126"
+    volumes:
+      - "./statsd_config.js:/src/statsd/config.js"
+  statsdexporter:
+    image: prom/statsd-exporter
+    networks:
+      - shared
+    #command: "-statsd.mapping-config=/tmp/statsd_mapping.conf"
+    ports:
+      - "9102:9102"
+      - "9125:9125/udp"
+    volumes:
+      - "./statsd_mapping.conf:/tmp/statsd_mapping.conf"
+    depends_on:
+      - statsd

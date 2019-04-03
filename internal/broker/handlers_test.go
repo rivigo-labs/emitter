@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"github.com/emitter-io/emitter/internal/config"
 	"testing"
 
 	"github.com/emitter-io/emitter/internal/message"
@@ -629,4 +630,110 @@ func TestHandlers_lookupPresence(t *testing.T) {
 	s.subscriptions.Subscribe(message.Ssid{1, 2, 3}, s.newConn(netmock.NewNoop()))
 	presence := s.lookupPresence(message.Ssid{1, 2, 3})
 	assert.NotEmpty(t, presence)
+}
+
+func TestAuthOnConnect(t *testing.T){
+
+	license, _ := security.ParseLicense(testLicense)
+	s := &Service{
+		subscriptions: message.NewTrie(),
+		License:       license,
+	}
+
+	conn := netmock.NewConn()
+	nc := s.newConn(conn.Client)
+
+	testPkt := &mqtt.Connect{
+		ProtoName:      []byte("MQTsdp"),
+		Version:        3,
+		UsernameFlag:   true,
+		PasswordFlag:   true,
+		WillRetainFlag: true,
+		WillQOS:        0,
+		WillFlag:       true,
+		CleanSeshFlag:  true,
+		KeepAlive:      30,
+		ClientID:       []byte("420"),
+		WillTopic:      []byte("a/b/c"),
+		WillMessage:    []byte("tommy this and tommy that and tommy ow's yer soul"),
+		Username:       []byte("Username"),
+		Password:       []byte("secret"),
+	}
+
+	fixtures := []struct{
+		packetUsername string
+		packerPassword string
+		configUsername string
+		configPassword string
+		configKey       string
+		expected       bool
+	}{
+		{
+			packetUsername: "testUser",
+			packerPassword: "testPassword",
+			configUsername: "testUser",
+			configPassword: "testPassword",
+			configKey     :  "key",
+			expected      :  true,
+
+		},
+		{
+			packetUsername: "testUser",
+			packerPassword: "testPassword",
+			configUsername: "test",
+			configPassword: "testPassword",
+			configKey     :  "key",
+			expected      :  true,
+
+		},
+		{
+			packetUsername: "testUser",
+			packerPassword: "testPassword",
+			configUsername: "testUser",
+			configPassword: "password",
+			configKey     :  "key",
+			expected      :  false,
+
+		},
+		{
+			packetUsername: "testUser",
+			packerPassword: "testPassword",
+			configUsername: "something",
+			configPassword: "",
+			configKey     :  "key",
+			expected      :  true,
+
+		},
+		{
+			packetUsername: "user",
+			packerPassword: "secret",
+			configUsername: "user",
+			configPassword: "secret",
+			configKey     :  "key",
+			expected      :  true,
+
+		},
+	}
+
+
+	for _, fixture := range fixtures{
+		testPkt.Username = []byte(fixture.packetUsername)
+		testPkt.Password = []byte(fixture.packerPassword)
+
+		authConfig := make(map[string]*config.PasswordAuthConfig,0)
+
+		passwdConfig := &config.PasswordAuthConfig{
+			Password: fixture.configPassword,
+			ChannelKey: fixture.configKey,
+		}
+
+		authConfig[fixture.configUsername] = passwdConfig
+
+		result := nc.onConnect(testPkt, authConfig)
+
+		if fixture.expected != result{
+			t.Errorf("Expect %v, got %v : Fixture: %v", fixture.expected, result, fixture)
+		}
+
+	}
 }
