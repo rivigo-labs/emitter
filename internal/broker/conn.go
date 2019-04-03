@@ -172,11 +172,7 @@ func (c *Conn) onReceive(msg mqtt.Message) error {
 		if c.bindkey != "" {
 			packet.Subscriptions = addkeyToTopics(packet.Subscriptions, c.bindkey)
 		}
-
-		for _,subTuple := range packet.Subscriptions{
-			logging.LogAction("service", fmt.Sprintf("Topic is: %s",string(subTuple.Topic)))
-		}
-
+		
 		ack := mqtt.Suback{
 			MessageID: packet.MessageID,
 			Qos:       make([]uint8, 0, len(packet.Subscriptions)),
